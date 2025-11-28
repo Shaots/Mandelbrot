@@ -8,6 +8,12 @@
 class SfmlEventHandler {
 public:
     using sender_concept = stdexec::sender_t;
+    using completion_signatures = stdexec::completion_signatures<
+        stdexec::set_value_t(),
+        stdexec::set_error_t(std::exception_ptr),
+        stdexec::set_stopped_t()
+    >;
+    
     template <typename Receiver>
     struct OperationState {
         Receiver receiver_;
@@ -18,23 +24,46 @@ public:
 
         static constexpr float ZOOM_INTERVAL_MS = 100.0f;
 
-        template <typename R>
-        explicit OperationState(R &&r, sf::RenderWindow &window, RenderSettings render_settings, AppState &state,
-                                sf::Clock &zoom_clock)
-            : receiver_{std::forward<R>(r)}, window_{window}, render_settings_{render_settings}, state_{state},
-              zoom_clock_{zoom_clock} {}
+        friend void tag_invoke(stdexec::start_t, OperationState &self) noexcept {
+            try {
+                if (self.state_.should_exit) {
+                    stdexec::set_stopped(std::move(self.receiver_));
+                    return;
+                }
 
-        
-        /* Ваш код здесь  */
+                self.HandleEvents();
+                self.HandleContinuousZoom();
+
+                if (self.state_.should_exit) {
+                    stdexec::set_stopped(std::move(self.receiver_));
+                } else {
+                    stdexec::set_value(std::move(self.receiver_));
+                }
+            } catch (...) {
+                stdexec::set_error(std::move(self.receiver_), std::current_exception());
+            }
+        }
 
     private:
         void HandleEvents() {
             sf::Event event;
             while (window_.pollEvent(event)) {
                 switch (event.type) {
-
-                /* Ваш код здесь  */
-
+                case sf::Event::Closed:
+                    state_.should_exit = true;
+                    break;
+                case sf::Event::MouseButtonPressed:
+                    if (event.mouseButton.button == sf::Mouse::Left)
+                        state_.left_mouse_pressed = true;
+                    if (event.mouseButton.button == sf::Mouse::Right)
+                        state_.right_mouse_pressed = true;
+                    break;
+                case sf::Event::MouseButtonReleased:
+                    if (event.mouseButton.button == sf::Mouse::Left)
+                        state_.left_mouse_pressed = false;
+                    if (event.mouseButton.button == sf::Mouse::Right)
+                        state_.right_mouse_pressed = false;
+                    break;
                 default:
                     break;
                 }
@@ -66,14 +95,21 @@ public:
             const double new_width = state_.viewport.width() * zoom_factor;
             const double new_height = state_.viewport.height() * zoom_factor;
 
-            /* Ваш код обновления state_ здесь  */
+            state_.viewport.x_min = target_x - (static_cast<double>(pixel_x) / render_settings_.width) * new_width;
+            state_.viewport.y_min = target_y - (static_cast<double>(pixel_y) / render_settings_.height) * new_height;
+            state_.viewport.x_max = state_.viewport.x_min + new_width;
+            state_.viewport.y_max = state_.viewport.y_min + new_height;
+            state_.need_rerender = true;
         }
     };
 
     SfmlEventHandler(sf::RenderWindow &window, RenderSettings render_settings, AppState &state, sf::Clock &zoom_clock)
         : window_{window}, render_settings_{render_settings}, state_{state}, zoom_clock_{zoom_clock} {}
 
-    /* Ваш код здесь  */
+    template <stdexec::receiver Receiver>
+    auto connect(Receiver &&receiver) && -> OperationState<std::decay_t<Receiver>> {
+        return {std::forward<Receiver>(receiver), window_, render_settings_, state_, zoom_clock_};
+    }
 
 private:
 
