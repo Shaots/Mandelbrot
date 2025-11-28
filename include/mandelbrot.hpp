@@ -42,7 +42,10 @@ public:
                                             MandelbrotRenderer &renderer)
         : state_(state), render_settings_{render_settings}, renderer_{renderer} {}
 
-    /* Ваш код здесь  */
+    template <stdexec::receiver Receiver>
+    auto connect(Receiver &&receiver) && -> OperationState<std::decay_t<Receiver>> {
+        return {std::forward<Receiver>(receiver), state_, render_settings_, renderer_};
+    }
 
 private:
     RenderSettings render_settings_;
