@@ -7,7 +7,7 @@
 
 class SfmlEventHandler {
 public:
-
+    using sender_concept = stdexec::sender_t;
     template <typename Receiver>
     struct OperationState {
         Receiver receiver_;

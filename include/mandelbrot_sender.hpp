@@ -15,6 +15,8 @@ struct MandelbrotOperationState {
 
 template <typename Receiver>
 struct MandelbrotSender {
+    using sender_concept = stdexec::sender_t;
+    
     mandelbrot::ViewPort viewport_;
     RenderSettings settings_;
     PixelRegion region_;
