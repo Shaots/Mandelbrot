@@ -27,7 +27,18 @@ private:
 
 class WaitForFPS {
 public:
+    explicit WaitForFPS(FrameClock &clock, int fps) : clock_{clock}, duration_{1s / std::max(1, fps)} {}
 
+    void operator()() const noexcept {
+        if (auto elapsed = clock_.GetFrameTime(); elapsed < duration_) {
+            std::this_thread::sleep_for(duration_ - elapsed);
+        }
+        clock_.Reset();
+    }
+
+private:
+    FrameClock &clock_;
+    const std::chrono::milliseconds duration_;
 };
 
 class MandelbrotApp {
